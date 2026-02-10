@@ -1,5 +1,5 @@
 import numpy as np
-
+import random
 
 class HeartModel:
     def __init__(self, age: int, resting_hr: int, max_hr: int = None):
@@ -58,6 +58,9 @@ class HeartModel:
         # Integrate TRIMP based on elapsed time (dt / 60 because TRIMP is per minute)
         trimp_increase = dt * (1/60) * hr_reserve * np.exp(1.92 * hr_reserve)
         self.cumulative_trimp += float(trimp_increase)
+
+        variation = random.uniform(-0.5, 0.5) # jitter
+        self.current_hr += variation
 
         return self.get_metrics()
 
