@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+psycopg2-binary
+sqlalchemy
+numpy
+pandas
+scikit-learn
+alembic
+pytest
+pytest-cov
+httpx

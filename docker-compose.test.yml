@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  test_db:
+    image: timescale/timescaledb:latest-pg16
+    volumes:
+      - ./init_db.sql:/docker-entrypoint-initdb.d/01_init_db.sql
+    environment:
+      - POSTGRES_DB=heart_test_db
+      - POSTGRES_USER=tester
+      - POSTGRES_PASSWORD=secret
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U tester -d heart_test_db" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - heart-net
+
+  backend_sim:
+    build: .
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    environment:
+      - DATABASE_URL=postgresql://tester:secret@test_db:5432/heart_test_db
+      - PYTHONPATH=/app/01_Backend_Simulation
+    depends_on:
+      test_db:
+        condition: service_healthy
+    networks:
+      - heart-net
+
+  test_runner:
+    build: .
+    environment:
+      - API_URL=http://backend_sim:8000
+      - PYTHONPATH=/app/01_Backend_Simulation
+      
+      - DATABASE_URL=postgresql://tester:secret@test_db:5432/heart_test_db
+    depends_on:
+      backend_sim:
+        condition: service_started
+    volumes:
+      - .:/app
+    # Sleep  2s 
+    command: /bin/sh -c "sleep 2 && pytest 01_Backend_Simulation/tests/ -v -s"
+    networks:
+      - heart-net
+
+networks:
+  heart-net:
+    driver: bridge

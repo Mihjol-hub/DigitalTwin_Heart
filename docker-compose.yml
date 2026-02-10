@@ -1,0 +1,47 @@
+services:
+  heart_db:
+    image: timescale/timescaledb:latest-pg16
+    container_name: heart_db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: heart_db
+    ports:
+      - "5432:5432"
+    healthcheck: # Opcional pero recomendadisimo: Verifica que PG esté listo
+      test: ["CMD-SHELL", "pg_isready -U user -d heart_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    # command: postgres -c shared_preload_libraries=timescaledb
+
+  simulation_engine:
+    build: .
+    container_name: heart_engine
+    restart: on-failure  # <--- AGREGA ESTO: Reintenta si falla la conexión
+    volumes:
+      - ./01_Backend_Simulation:/app
+    environment:
+      - PYTHONPATH=/app
+      # Asegurate de que tu código Python lea esta variable para conectarse
+      - DATABASE_URL=postgresql://user:password@heart_db:5432/heart_db
+    command: python simulation_engine/worker.py
+    depends_on:
+      heart_db:
+        condition: service_healthy # Espera al healthcheck (si lo pones) o usa service_started
+
+  heart_brain:
+    build: .
+    container_name: heart_brain
+    restart: on-failure  # <--- AGREGA ESTO
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./01_Backend_Simulation:/app
+    environment:
+      - PYTHONPATH=/app
+      - DATABASE_URL=postgresql://user:password@heart_db:5432/heart_db
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      heart_db:
+        condition: service_healthy
