@@ -7,8 +7,8 @@ CREATE TABLE IF NOT EXISTS heart_metrics (
     bpm         DOUBLE PRECISION  NOT NULL,
     trimp       DOUBLE PRECISION  NOT NULL,
     hrr         DOUBLE PRECISION  NOT NULL,
-    zone        INTEGER           NOT NULL,
-    intensity   DOUBLE PRECISION  NOT NULL,
+    zone        VARCHAR(20)       NOT NULL,
+    intensity   DOUBLE PRECISION,
     color       VARCHAR(20)
 );
 

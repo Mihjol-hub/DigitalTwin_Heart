@@ -8,17 +8,36 @@ services:
       POSTGRES_DB: heart_db
     ports:
       - "5432:5432"
-    healthcheck: # Opcional pero recomendadisimo: Verifica que PG esté listo
-      test: ["CMD-SHELL", "pg_isready -U user -d heart_db"]
+    healthcheck:
+      # Opcional pero recomendadisimo: Verifica que PG esté listo
+      test: [ "CMD-SHELL", "pg_isready -U user -d heart_db" ]
       interval: 5s
       timeout: 5s
       retries: 5
-    # command: postgres -c shared_preload_libraries=timescaledb
+  mqtt_broker:
+    image: eclipse-mosquitto:latest
+    container_name: mqtt_broker
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+  heart_sensor:
+    build: .
+    container_name: heart_sensor
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app
+      - MQTT_HOST=mqtt_broker
+    command: python sensor_mock.py
+    depends_on:
+      - mqtt_broker
 
   simulation_engine:
     build: .
     container_name: heart_engine
-    restart: on-failure  # <--- AGREGA ESTO: Reintenta si falla la conexión
+    restart: on-failure # <--- AGREGA ESTO: Reintenta si falla la conexión
     volumes:
       - ./01_Backend_Simulation:/app
     environment:
@@ -33,7 +52,7 @@ services:
   heart_brain:
     build: .
     container_name: heart_brain
-    restart: on-failure  # <--- AGREGA ESTO
+    restart: on-failure # <--- AGREGA ESTO
     ports:
       - "8000:8000"
     volumes:

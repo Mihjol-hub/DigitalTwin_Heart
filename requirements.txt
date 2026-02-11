@@ -9,3 +9,4 @@ alembic
 pytest
 pytest-cov
 httpx
+paho-mqtt

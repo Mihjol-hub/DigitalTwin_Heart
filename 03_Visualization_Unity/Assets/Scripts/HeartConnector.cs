@@ -1,17 +1,19 @@
 using UnityEngine;
 using UnityEngine.Networking;
 using System.Collections;
+using UnityEngine.UI;
 
-// 1. ESTA ES LA CLASE DE DATOS: Debe ir afuera de la otra clase.
-// Sus nombres deben ser EXACTOS a como los pusimos en Python (physio_model.py)
+
 [System.Serializable]
 public class HeartMetrics
 {
+    public string time;   //  JSON FastAPI
     public float bpm;
     public float trimp;
-    public float hrr;     // Métrica de recuperación solicitada en el PDF
+    public float hrr;
     public string zone;
-    public string color;  // El color en Hexadecimal que manda Python
+    public string color;
+    public float intensity; // from Unity to Python
 }
 
 public class HeartConnector : MonoBehaviour
@@ -21,24 +23,24 @@ public class HeartConnector : MonoBehaviour
     public float updateInterval = 0.5f; 
 
     [Header("Visualización")]
-    public float scaleFactor = 0.2f; // Qué tanto se infla la esfera
+    public float scaleFactor = 0.2f; // how much will the sphere grow with each heartbeat?
     private Vector3 initialScale;
     private float currentBPM = 60f;
-    private Renderer heartRenderer; // Referencia al color de la esfera
+    private Renderer heartRenderer; // Reference to the sphere's color
 
     void Start()
     {
         initialScale = transform.localScale;
         heartRenderer = GetComponent<Renderer>();
         
-        // Iniciamos el bucle de petición de datos
+        // Start the data request loop
         StartCoroutine(GetHeartDataLoop());
     }
 
     void Update()
     {
-        // 2. EL LATIDO FÍSICO:
-        // Usamos currentBPM que se actualiza desde Python
+        // 2. PHYSICAL BEAT:
+        // use currentBPM which is updated from Python
         float beatSpeed = currentBPM / 60f; 
         float pulse = Mathf.PingPong(Time.time * beatSpeed * 2f, scaleFactor);
         transform.localScale = initialScale + new Vector3(pulse, pulse, pulse);
@@ -54,29 +56,48 @@ public class HeartConnector : MonoBehaviour
 
                 if (webRequest.result == UnityWebRequest.Result.Success)
                 {
-                    // 3. LEER EL JSON:
+                    // 3. READ THE JSON:
                     string json = webRequest.downloadHandler.text;
                     HeartMetrics metrics = JsonUtility.FromJson<HeartMetrics>(json);
                     
-                    // Actualizamos variables locales con lo que dijo Python
+                    // Update local variables with data from Python
                     currentBPM = metrics.bpm;
 
-                    // 4. CAMBIO DE COLOR DINÁMICO:
-                    // Usamos el color hexadecimal que configuramos en Python (hexadecimal)
+                    // 4. DYNAMIC COLOR CHANGE:
+                    // Use the hexadecimal color configured in Python
                     Color zoneColor;
                     if (ColorUtility.TryParseHtmlString(metrics.color, out zoneColor))
                     {
                         heartRenderer.material.color = zoneColor;
                     }
 
-                    Debug.Log($"Corazón: {metrics.bpm} BPM | Zona: {metrics.zone} | Recup: {metrics.hrr}");
+                    Debug.Log($"Heart: {metrics.bpm} BPM | Zone: {metrics.zone} | Recovery: {metrics.hrr}");
                 }
                 else
                 {
-                    Debug.LogWarning("Servidor Python no responde. ¿Docker está UP?");
+                    Debug.LogWarning("Python server not responding. Is Docker UP?");
                 }
             }
             yield return new WaitForSeconds(updateInterval);
         }
     }
+
+    public void OnIntensityChanged(float  val)
+    {
+        StartCoroutine(SetIntensity(val));
+    }
+
+    IEnumerator SetIntensity(float intensity)
+    
+    {
+    
+        string postUrl = $"http://localhost:8000/set_intensity/{intensity}";
+        using (UnityWebRequest www = UnityWebRequest.PostWwwForm(postUrl, ""))
+        {
+            yield return www.SendWebRequest();
+            if (www.result == UnityWebRequest.Result.Success)
+                Debug.Log($"🚀 Intensity sent: {intensity}");
+        }
+    }
+    
 }

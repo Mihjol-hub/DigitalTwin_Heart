@@ -16,6 +16,6 @@ class HeartLog(Base):
     bpm = Column(Float, nullable=False)
     trimp = Column(Float, nullable=False)
     hrr = Column(Float, nullable=False)
-    zone = Column(Integer, nullable=False)
-    intensity = Column(Float, nullable=False)
+    zone = Column(String(20), nullable=False)
+    intensity = Column(Float, nullable=True)
     color = Column(String(20), nullable=True)
