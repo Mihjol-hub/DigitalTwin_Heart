@@ -7,7 +7,7 @@ using UnityEngine.UI;
 [System.Serializable]
 public class HeartMetrics
 {
-    public string time;   //  JSON FastAPI
+    public string timestamp;   //  JSON FastAPI
     public float bpm;
     public float trimp;
     public float hrr;
@@ -84,6 +84,7 @@ public class HeartConnector : MonoBehaviour
 
     public void OnIntensityChanged(float  val)
     {
+        StopCoroutine("SetIntensity"); // Stop any previous intensity setting coroutine
         StartCoroutine(SetIntensity(val));
     }
 
@@ -91,12 +92,16 @@ public class HeartConnector : MonoBehaviour
     
     {
     
-        string postUrl = $"http://localhost:8000/set_intensity/{intensity}";
+        string postUrl = $"http://localhost:8000/set_intensity/{intensity.ToString("F2")}";
+
         using (UnityWebRequest www = UnityWebRequest.PostWwwForm(postUrl, ""))
         {
             yield return www.SendWebRequest();
+
             if (www.result == UnityWebRequest.Result.Success)
-                Debug.Log($"🚀 Intensity sent: {intensity}");
+                Debug.Log($"Intensity sent: {intensity}");
+            else
+                Debug.LogWarning("Failed to send intensity to Python." + www.error);
         }
     }
     

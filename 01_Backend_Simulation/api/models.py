@@ -11,7 +11,7 @@ class HeartLog(Base):
     __tablename__ = "heart_metrics"
     
     # IMPORTANT: define the PK on time
-    time = Column(DateTime(timezone=True), primary_key=True, default=datetime.utcnow)
+    timestamp = Column(DateTime(timezone=True), primary_key=True, default=datetime.utcnow)
     
     bpm = Column(Float, nullable=False)
     trimp = Column(Float, nullable=False)

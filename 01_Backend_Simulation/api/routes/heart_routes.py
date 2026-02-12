@@ -13,7 +13,7 @@ def get_db():
 @router.get("/metrics")
 def get_metrics(db: Session = Depends(get_db)):
     #  .time 
-    last_log = db.query(HeartLog).order_by(HeartLog.time.desc()).first()
+    last_log = db.query(HeartLog).order_by(HeartLog.timestamp.desc()).first()
     
     if not last_log:
         raise HTTPException(status_code=404, detail="No heart data found")
