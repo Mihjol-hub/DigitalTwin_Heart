@@ -9,7 +9,6 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      # Opcional pero recomendadisimo: Verifica que PG esté listo
       test: [ "CMD-SHELL", "pg_isready -U user -d heart_db" ]
       interval: 5s
       timeout: 5s
@@ -22,6 +21,12 @@ services:
       - "9001:9001"
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+    healthcheck:
+      test: [ "CMD", "timeout", "1", "sh", "-c", "nc -z localhost 1883" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   heart_sensor:
     build: .
     container_name: heart_sensor
@@ -32,27 +37,30 @@ services:
       - MQTT_HOST=mqtt_broker
     command: python sensor_mock.py
     depends_on:
-      - mqtt_broker
+      mqtt_broker:
+        condition: service_healthy
 
   simulation_engine:
     build: .
     container_name: heart_engine
-    restart: on-failure # <--- AGREGA ESTO: Reintenta si falla la conexión
+    restart: on-failure
     volumes:
       - ./01_Backend_Simulation:/app
     environment:
       - PYTHONPATH=/app
-      # Asegurate de que tu código Python lea esta variable para conectarse
       - DATABASE_URL=postgresql://user:password@heart_db:5432/heart_db
+      - MQTT_HOST=mqtt_broker
     command: python simulation_engine/worker.py
     depends_on:
       heart_db:
-        condition: service_healthy # Espera al healthcheck (si lo pones) o usa service_started
+        condition: service_healthy
+      mqtt_broker:
+        condition: service_healthy
 
   heart_brain:
     build: .
     container_name: heart_brain
-    restart: on-failure # <--- AGREGA ESTO
+    restart: on-failure
     ports:
       - "8000:8000"
     volumes:
@@ -64,3 +72,10 @@ services:
     depends_on:
       heart_db:
         condition: service_healthy
+
+  heart_ingestor:
+    build: ./05_Data_Ingestion
+    container_name: heart_ingestor
+    depends_on:
+      - mqtt_broker
+    restart: always

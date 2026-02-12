@@ -26,3 +26,15 @@ CREATE TABLE IF NOT EXISTS simulation_state (
 INSERT INTO simulation_state (id, target_intensity) 
 VALUES (1, 0.0) 
 ON CONFLICT (id) DO NOTHING;
+
+
+-- Tabla para métricas del entorno (Contexto para el ML)
+CREATE TABLE IF NOT EXISTS environmental_metrics (
+    time TIMESTAMPTZ NOT NULL,
+    temperature DOUBLE PRECISION,
+    pressure DOUBLE PRECISION,
+    humidity DOUBLE PRECISION 
+);
+
+-- Convertirla en Hypertable para rendimiento de series temporales
+SELECT create_hypertable('environmental_metrics', 'time', if_not_exists => TRUE);
