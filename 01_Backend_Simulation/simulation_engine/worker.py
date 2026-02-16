@@ -4,99 +4,127 @@ import os
 import json
 import paho.mqtt.client as mqtt
 from sqlalchemy.orm import Session
-
-# Asegurar que encuentre los módulos
 sys.path.append(os.getcwd())
 
 from api.database import SessionLocal, init_db
 from api.models import HeartLog, SimulationState, EnvironmentalMetric
 from core_logic.physio_model import HeartModel
 
-# --- CONFIGURACIÓN ---
 MQTT_BROKER = os.getenv("MQTT_HOST", "mqtt_broker")
-CLIENT_ID = "HeartEngine_Worker_V3" # <--- VARIABLE DEFINIDA
+CLIENT_ID = "HeartEngine_Worker_V4"
+
+# starting physio model
 patient = HeartModel(age=25, resting_hr=60)
+
+# global variable for temperature
+current_temperature = 20.0 
 
 def on_connect(client, userdata, flags, rc, properties=None):
     if rc == 0:
-        print(f"✅ Conectado al Broker MQTT")
-        client.subscribe("heart/#") # Suscripción a TODO el ecosistema
+        print(f"✅ Connected to MQTT Broker")
+        # wildcard subscription to listen to everything starting with 'heart/'
+        client.subscribe("heart/#") 
     else:
-        print(f"❌ Error de conexión: {rc}")
+        print(f"❌ Error connecting to MQTT Broker: {rc}")
 
 def on_message(client, userdata, msg):
+    # global variable for temperature
+    global current_temperature
+    
     db = SessionLocal()
     try:
         payload = msg.payload.decode()
         
-        # RUTA 1: Telemetría Cardíaca
+        # 1. Heart Telemetry 
         if msg.topic == "heart/telemetry":
             data = json.loads(payload)
             bpm_real = data.get("bpm", 60)
+            
+            # request intensity state from database
             state = db.query(SimulationState).first()
             user_intensity = state.target_intensity if state else 0.5
-            metrics = patient.simulate_step(intensity=user_intensity)
-            metrics["bpm"] = bpm_real
+            
+            # send temperature to digital brain
+            metrics = patient.simulate_step(
+                intensity=user_intensity, 
+                temperature=current_temperature  
+            )
+            
+
             log = HeartLog(
-                bpm=metrics["bpm"], trimp=metrics["trimp"],
-                hrr=metrics["hrr"], zone=metrics["zone"],
-                intensity=user_intensity, color=metrics["color"]
+                bpm=bpm_real,             
+                trimp=metrics["trimp"],   
+                hrr=metrics["hrr"],       
+                zone=metrics["zone"],
+                intensity=user_intensity, 
+                color=metrics["color"]
             )
             db.add(log)
-            print(f"💓 BPM: {bpm_real}")
+            # print combined data to verify that it works
+            print(f"💓 Real: {bpm_real} | Sim(T={current_temperature}°C): {metrics['bpm']}")
 
-        # RUTA 2: Datos Ambientales
+        # 2. Environment Data 
         elif msg.topic == "heart/env/temperature":
             data = json.loads(payload)
             temp = data.get("temp_c")
-            env_log = EnvironmentalMetric(temperature=temp)
-            db.add(env_log)
-            print(f"🌡️ Clima Guardado: {temp}°C")
+            
+            if temp is not None:
+                # Update global memory of the worker
+                current_temperature = float(temp)
+                
+                # Save in database for history
+                env_log = EnvironmentalMetric(temperature=current_temperature)
+                db.add(env_log)
+                print(f"🌡️ Climate Data Update: {current_temperature}°C")
 
-        # RUTA 3: Intensidad desde Ingestor
+        # 3. Intensity from Ingestor 
         elif msg.topic == "heart/physio/intensity":
-            new_intensity = float(payload)
-            state = db.query(SimulationState).first()
-            if not state:
-                state = SimulationState(target_intensity=new_intensity)
-            else:
-                state.target_intensity = new_intensity
-            db.add(state)
-            print(f"🏃 Nueva Intensidad: {new_intensity}")
+            try:
+                new_intensity = float(payload)
+                state = db.query(SimulationState).first()
+                if not state:
+                    state = SimulationState(target_intensity=new_intensity)
+                    db.add(state) 
+                else:
+                    state.target_intensity = new_intensity
+                    
+                print(f"🏃 New Intensity Target: {new_intensity}")
+            except ValueError:
+                print(f"⚠️ Invalid intensity value received: {payload}")
 
         db.commit()
     except Exception as e:
-        print(f"❌ Error en tópico {msg.topic}: {e}")
+        print(f"❌ Error processing message on {msg.topic}: {e}")
         db.rollback()
     finally:
         db.close()
 
-
 def run_engine():
+    # Initialize tables if they don't exist
     init_db()
+    
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, CLIENT_ID)
     client.on_connect = on_connect
     client.on_message = on_message
     
-    print("🚀 Motor del Gemelo Digital Nivel 3 arrancando...")
+    print("🚀 Heart Engine Worker V4 (Thermo-Sensitive) starting...")
     
-    # Bucle de reconexión robusto
+    # Robust reconnection loop
     connected = False
     while not connected:
         try:
-            print(f"📡 Intentando conectar al broker en {MQTT_BROKER}...")
+            print(f"📡 Attempting connection to broker {MQTT_BROKER}...")
             client.connect(MQTT_BROKER, 1883, 60)
             connected = True
         except Exception as e:
-            print(f"⏳ El broker no está listo aún ({e}). Reintentando en 2s...")
+            print(f"⏳ Broker not ready ({e}). Retrying in 2s...")
             time.sleep(2)
 
     try:
         client.loop_forever()
     except KeyboardInterrupt:
-        print("🛑 Deteniendo motor...")
+        print("🛑 Stopping Heart Engine Worker...")
         client.disconnect()
-
 
 if __name__ == "__main__":
     run_engine()

@@ -34,7 +34,7 @@ services:
     environment:
       - API_URL=http://backend_sim:8000
       - PYTHONPATH=/app/01_Backend_Simulation
-      
+
       - DATABASE_URL=postgresql://tester:secret@test_db:5432/heart_test_db
     depends_on:
       backend_sim:
@@ -43,6 +43,13 @@ services:
       - .:/app
     # Sleep  2s 
     command: /bin/sh -c "sleep 2 && pytest 01_Backend_Simulation/tests/ -v -s"
+    networks:
+      - heart-net
+
+  mqtt_broker:
+    image: eclipse-mosquitto:latest
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
     networks:
       - heart-net
 

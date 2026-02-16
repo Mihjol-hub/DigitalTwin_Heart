@@ -3,7 +3,7 @@ CREATE EXTENSION IF NOT EXISTS timescaledb;
 
 -- 2. Metrics table (Synchronized with Python)
 CREATE TABLE IF NOT EXISTS heart_metrics (
-    timestamp   TIMESTAMPTZ       NOT NULL, 
+    time        TIMESTAMPTZ       NOT NULL, 
     bpm         DOUBLE PRECISION  NOT NULL,
     trimp       DOUBLE PRECISION  NOT NULL,
     hrr         DOUBLE PRECISION  NOT NULL,
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS heart_metrics (
 );
 
 -- 3. Convert to Hypertable using the correct column
-SELECT create_hypertable('heart_metrics', 'timestamp', if_not_exists => TRUE);
+SELECT create_hypertable('heart_metrics', 'time', if_not_exists => TRUE);
 
 -- 4. State table
 CREATE TABLE IF NOT EXISTS simulation_state (
@@ -28,7 +28,7 @@ VALUES (1, 0.0)
 ON CONFLICT (id) DO NOTHING;
 
 
--- Tabla para métricas del entorno (Contexto para el ML)
+-- Table for environmental metrics (Context for ML)
 CREATE TABLE IF NOT EXISTS environmental_metrics (
     time TIMESTAMPTZ NOT NULL,
     temperature DOUBLE PRECISION,
@@ -36,5 +36,5 @@ CREATE TABLE IF NOT EXISTS environmental_metrics (
     humidity DOUBLE PRECISION 
 );
 
--- Convertirla en Hypertable para rendimiento de series temporales
+-- Convert to Hypertable for time series performance
 SELECT create_hypertable('environmental_metrics', 'time', if_not_exists => TRUE);

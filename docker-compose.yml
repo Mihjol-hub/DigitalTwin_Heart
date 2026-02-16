@@ -72,10 +72,19 @@ services:
     depends_on:
       heart_db:
         condition: service_healthy
+      #heart_ingestor:
+      #build: ./05_Data_Ingestion
+      #container_name: heart_ingestor
+      #depends_on:
+      #- mqtt_broker
+      #restart: always
 
-  heart_ingestor:
+  heart_climate:
     build: ./05_Data_Ingestion
-    container_name: heart_ingestor
+    container_name: heart_climate
+    environment:
+      - MQTT_HOST=mqtt_broker
+      - API_KEY=TU_API_KEY_AQUI # La conseguiremos en 2 minutos
+    command: python climate_fetcher.py
     depends_on:
       - mqtt_broker
-    restart: always

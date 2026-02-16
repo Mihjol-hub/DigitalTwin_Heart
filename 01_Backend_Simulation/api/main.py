@@ -7,18 +7,17 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from sqlalchemy.orm import Session
 
-# Importaciones corregidas (relativas)
 from .database import engine, Base, SessionLocal, init_db
 from .models import HeartLog, SimulationState
 from .routes import heart_routes
 
-# Crear tablas al cargar el módulo
+# Create tables on module load
 Base.metadata.create_all(bind=engine)
 
 def run_simulation():
-    """Generador de datos del corazón (El motor del DT)."""
-    time.sleep(5) # Esperar a que la DB esté lista
-    print("🚀 [Engine] Iniciando simulación cardíaca...", flush=True)
+    """Heart data generator (The DT engine)."""
+    time.sleep(5) # Wait for the DB to be ready
+    print("🚀 [Engine] Starting simulation...", flush=True)
     
     db = SessionLocal()
     current_bpm = 60.0
@@ -28,14 +27,14 @@ def run_simulation():
             state = db.query(SimulationState).first()
             target_intensity = state.target_intensity if state else 0.5
             
-            # Lógica física simple
+            # Simple physics logic
             target_bpm = 60 + (target_intensity * 120)
             current_bpm += (target_bpm - current_bpm) * 0.1
             final_bpm = current_bpm + random.uniform(-1.0, 1.0)
 
-            # Insertar usando 'timestamp' (coincidiendo con models.py)
+            # Insert using 'timestamp' (matching models.py)
             new_log = HeartLog(
-                timestamp=datetime.utcnow(), 
+                time=datetime.utcnow(), 
                 bpm=final_bpm,
                 intensity=target_intensity,
                 hrr=(final_bpm - 60) / 130,
@@ -58,14 +57,14 @@ def run_simulation():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Todo el inicio centralizado aquí (Estilo Nivel 4)
-    print("🚀 Iniciando el Cerebro del Gemelo Digital...")
+    # Centralized startup here (Level 4 style)
+    print("🚀 Starting the Digital Twin Brain...")
     init_db()
-    # Arrancamos el hilo de simulación
+    # Start the simulation thread
     sim_thread = threading.Thread(target=run_simulation, daemon=True)
     sim_thread.start()
     yield
-    print("🛑 Apagando sistemas...")
+    print("🛑 Shutting down systems...")
 
 app = FastAPI(title="Heart Digital Twin", lifespan=lifespan)
 
