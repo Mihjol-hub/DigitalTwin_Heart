@@ -21,7 +21,10 @@ services:
     build: .
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000
     environment:
-      - DATABASE_URL=postgresql://tester:secret@test_db:5432/heart_test_db
+      - POSTGRES_USER=tester
+      - POSTGRES_PASSWORD=secret
+      - POSTGRES_DB=heart_test_db
+      - DB_HOST=test_db
       - PYTHONPATH=/app/01_Backend_Simulation
     depends_on:
       test_db:
@@ -34,8 +37,10 @@ services:
     environment:
       - API_URL=http://backend_sim:8000
       - PYTHONPATH=/app/01_Backend_Simulation
-
-      - DATABASE_URL=postgresql://tester:secret@test_db:5432/heart_test_db
+      - POSTGRES_USER=tester
+      - POSTGRES_PASSWORD=secret
+      - POSTGRES_DB=heart_test_db
+      - DB_HOST=test_db
     depends_on:
       backend_sim:
         condition: service_started

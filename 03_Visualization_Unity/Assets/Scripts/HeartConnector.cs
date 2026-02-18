@@ -14,6 +14,7 @@ public class HeartMetrics
     public string zone;
     public string color;
     public float intensity; // from Unity to Python
+    public float? slope;
 }
 
 public class HeartConnector : MonoBehaviour

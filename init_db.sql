@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS heart_metrics (
     hrr         DOUBLE PRECISION  NOT NULL,
     zone        TEXT              NOT NULL, 
     intensity   DOUBLE PRECISION,
+    slope       DOUBLE PRECISION,
     color       TEXT
 );
 

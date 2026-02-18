@@ -11,6 +11,7 @@ class HeartLog(Base):
     hrr = Column(Float)
     zone = Column(String)
     intensity = Column(Float)
+    slope = Column(Float)
     color = Column(String)
 
 class EnvironmentalMetric(Base):

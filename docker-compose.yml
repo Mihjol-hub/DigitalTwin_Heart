@@ -5,11 +5,13 @@ services:
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: heart_db
+      POSTGRES_DB: heart_twin
     ports:
       - "5432:5432"
+    volumes:
+      - ./init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U user -d heart_db" ]
+      test: [ "CMD-SHELL", "pg_isready -U user -d heart_twin" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -48,7 +50,10 @@ services:
       - ./01_Backend_Simulation:/app
     environment:
       - PYTHONPATH=/app
-      - DATABASE_URL=postgresql://user:password@heart_db:5432/heart_db
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=heart_twin
+      - DB_HOST=heart_db
       - MQTT_HOST=mqtt_broker
     command: python simulation_engine/worker.py
     depends_on:
@@ -67,7 +72,10 @@ services:
       - ./01_Backend_Simulation:/app
     environment:
       - PYTHONPATH=/app
-      - DATABASE_URL=postgresql://user:password@heart_db:5432/heart_db
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=heart_twin
+      - DB_HOST=heart_db
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       heart_db:
@@ -83,8 +91,23 @@ services:
     build: ./05_Data_Ingestion
     container_name: heart_climate
     environment:
-      - MQTT_HOST=mqtt_broker
-      - API_KEY=TU_API_KEY_AQUI # La conseguiremos en 2 minutos
+      - MQTT_HOST=${MQTT_HOST}
+      - API_KEY=${OPENWEATHER_API_KEY}
     command: python climate_fetcher.py
     depends_on:
       - mqtt_broker
+
+  heart_elevation_server:
+    image: openelevation/open-elevation:latest
+    container_name: heart_elevation_server
+    ports:
+      - "8080:8080"
+    volumes:
+      # Map the 10GB file to the container
+      - ./02_Database/terrain_data:/code/data
+    restart: always
+
+    deploy:
+      resources:
+        limits:
+          memory: 4G

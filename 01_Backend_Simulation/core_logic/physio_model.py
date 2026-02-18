@@ -2,115 +2,127 @@ import numpy as np
 import random
 
 class HeartModel:
-    def __init__(self, age: int, resting_hr: int, max_hr: int = None):
+    def __init__(self, age: int, sex: str, resting_hr: int, max_hr: int = None):
+        """
+        Based on: 
+        - Neuroanatomy, Parasympathetic/Sympathetic Nervous System [cite: 11, 453]
+        - Banister's TRIMP Formula [cite: 372, 1027]
+        """
         self.age = age
+        self.sex = sex.lower()  # 'male' or 'female' for Banister's 'y' factor [cite: 381]
         self.resting_hr = resting_hr
         self.max_hr = max_hr if max_hr else (220 - age)
         
-        # State
-        self.current_hr = float(resting_hr) # Ensure float from the start
+        # Dynamic state
+        self.current_hr = float(resting_hr)
         self.cumulative_trimp = 0.0
         
-        # Recovery logic
+        # HRV variables (chaotic modeling/variability) [cite: 1144, 1162]
+        self.prev_variation = 0.0
+        
+        # Bifasic recovery logic [cite: 850, 852]
         self.is_recovering = False
         self.recovery_start_hr = 0
-        self.seconds_since_recovery_start = 0.0 # Internal counter
-        self.hrr_score = 0
-        self.hrr_calculated = False 
+        self.seconds_since_recovery_start = 0.0
+        self.hrr_1min = 0.0
 
-    def simulate_step(self, intensity: float, dt: float = 1.0, temperature: float = 20.0):
+    def _get_stochastic_hrv(self):
         """
-        Advance the simulation by one step.
-        dt: delta time in seconds (default 1 second per tick)
-        temperature: environmental temperature in Celsius
+        A healthy heart is not a metronome; it's a chaotic system[cite: 1144, 1162].
+        Simulate variability dependent on state (simple pink noise).
+        """
+        # Variability decreases with age[cite: 52, 1423].
+        age_factor = max(0.2, 1.0 - (self.age / 100))
+        # Process of Gauss-Markov to give 'memory' to the heartbeat.
+        phi = 0.8 
+        innovation = random.normalvariate(0, 0.5 * age_factor)
+        self.prev_variation = (phi * self.prev_variation) + innovation
+        return self.prev_variation
+
+    def simulate_step(self, intensity: float, dt: float = 1.0, temperature: float = 20.0, slope_percent: float = 0.0):
+        """
+        Advance the simulation integrating the SNA response.
         """
         previous_hr = self.current_hr
+
+        # New Logic of Terrain (STEP 0) ---
+        # A 1% positive slope increases metabolic effort significantly
+        # Adjustment: +10% of effort for each 1% of slope (you can adjust the 0.1)
+        slope_factor = max(0, slope_percent * 0.1) 
+        effective_intensity = intensity + slope_factor
         
-        # 1. Calculation of Base Target based on Intensity (Running/Walking)
-        target_hr_intensity = self.resting_hr + (self.max_hr - self.resting_hr) * intensity
-        
-        # 2. (NIVEL 4 FEATURE) Temperature Adjustment
-        # Logic: Heat creates drift upward due to thermoregulation
-        temp_drift = 0.0
+        # 1. Calculation of Heart Rate Reserve (HRR) [cite: 379, 1070]
+        # Target HR based on intensity
+        target_hr = self.resting_hr + (self.max_hr - self.resting_hr) * effective_intensity
+
+        # 2. Temperature Adjustment (Thermoregulation)
         if temperature > 25.0:
-            # Heat: +1 bpm for every degree above 25°C
-            temp_drift = (temperature - 25.0) * 1.0
-        elif temperature < 5.0:
-            # Cold: +0.5 bpm for every degree below 5°C (vasoconstriction stress)
-            temp_drift = (5.0 - temperature) * 0.5
+            target_hr += (temperature - 25.0) * 1.2
+        
+        # 3. Autonomic Asymmetry: The sympathetic nervous system is slower than the parasympathetic nervous system.
+        # Tau (time constant) in seconds.
+        if target_hr >= self.current_hr:
+            # Sympathetic Response (slow: >5s) 
+            tau = 20.0 
+        else:
+            # Parasympathetic Response (fast: <1s) [cite: 1207, 1322]
+            tau = 5.0 
             
-        # The new Target is Activity + Weather Stress
-        final_target_hr = target_hr_intensity + temp_drift
+        alpha = 1 - np.exp(-dt / tau)
+        self.current_hr += (target_hr - self.current_hr) * alpha
 
-        # 3. Physiological inertia (Alpha blending)
-        # If dt is 1 second, this works. If dt changes, alpha should be adjusted.
-        alpha = 0.1 if final_target_hr >= self.current_hr else 0.05
-        self.current_hr = (self.current_hr * (1 - alpha)) + (final_target_hr * alpha)
+        # 4. Calculation of TRIMP Exponential (Banister, 1991) [cite: 375, 1072]
+        # HRr = (HR_actual - HR_reposo) / (HR_max - HR_reposo)
+        hr_reserve_fraction = (self.current_hr - self.resting_hr) / (self.max_hr - self.resting_hr + 0.0001)
+        hr_reserve_fraction = max(0, hr_reserve_fraction)
+        
+        # y factor: 1.92 for men, 1.67 for women 
+        y_factor = 1.92 if self.sex == 'male' else 1.67
+        
+        # TRIMP = mins * HRr * 0.64 * e^(y * HRr) [cite: 1072]
+        # dt/60 for minutes
+        trimp_step = (dt / 60.0) * hr_reserve_fraction * 0.64 * np.exp(y_factor * hr_reserve_fraction)
+        self.cumulative_trimp += trimp_step
 
-        # 4. Detection of recovery start
-        # (If intensity drops to 0 and we were high)
-        if intensity == 0 and previous_hr > (self.resting_hr + 20) and not self.is_recovering:
+        # 5. Management of Bifasic Recovery [cite: 850, 852]
+        self._update_recovery_metrics(intensity, dt, previous_hr)
+
+        # 6. Inject Realistic Variability (HRV) [cite: 1143, 1159]
+        display_hr = self.current_hr + self._get_stochastic_hrv()
+        
+        return self.get_metrics(display_hr)
+
+    def _update_recovery_metrics(self, intensity, dt, previous_hr):
+        """
+        Detects the fast (PNS) and slow (SNS) recovery phases.
+        """
+        if intensity < 0.1 and previous_hr > (self.resting_hr + 20) and not self.is_recovering:
             self.is_recovering = True
             self.recovery_start_hr = previous_hr
             self.seconds_since_recovery_start = 0.0
-        
-        # 5. Recovery time counting
+            
         if self.is_recovering:
             self.seconds_since_recovery_start += dt
-
-            # Check if we passed the minute mark (approx 60 secs)
-            if 60.0 <= self.seconds_since_recovery_start <= 61.0 and not self.hrr_calculated:
-                self.hrr_score = float(round(self.recovery_start_hr - previous_hr, 1))
-                self.hrr_calculated = True
-                print(f"✅ [BIOMETRICS] HRR Calculated: {self.hrr_score} BPM recovery")
+            # Measure HRR at 1 minute (Cleveland Clinic Standard) [cite: 133, 153]
+            if 60.0 <= self.seconds_since_recovery_start <= 60.0 + dt:
+                self.hrr_1min = self.recovery_start_hr - self.current_hr
             
-            # If we start exercising again, cancel the recovery
-            if intensity > 0:
+            if intensity > 0.2: # Interrupt if returns to exercise
                 self.is_recovering = False
-                self.seconds_since_recovery_start = 0.0
-                self.hrr_calculated = False
 
-        # 6. TRIMP calculation (Banister's algorithm)
-        hr_reserve = (self.current_hr - self.resting_hr) / (self.max_hr - self.resting_hr + 1)
-        if hr_reserve < 0: hr_reserve = 0
-        
-        # Integrate TRIMP based on elapsed time (dt / 60 because TRIMP is per minute)
-        trimp_increase = dt * (1/60) * hr_reserve * np.exp(1.92 * hr_reserve)
-        self.cumulative_trimp += float(trimp_increase)
-
-        # 7. Natural Variation (Jitter)
-        variation = random.uniform(-0.5, 0.5) 
-        self.current_hr += variation
-
-        # Safety clamp (para que el drift de temperatura no cause valores irreales)
-        if self.current_hr > 230: self.current_hr = 230
-        if self.current_hr < 30: self.current_hr = 30
-
-        return self.get_metrics()
-
-    def get_metrics(self):
+    def get_metrics(self, current_hr_display):
         return {
-            "bpm": float(round(self.current_hr, 1)),
-            "trimp": float(round(self.cumulative_trimp, 2)),
-            "hrr": float(round(self.hrr_score, 1)),
-            "zone": self._get_zone(),
-            "color": self._get_zone_color()
+            "bpm": float(round(current_hr_display, 1)),
+            "trimp": float(round(self.cumulative_trimp, 3)),
+            "hrr_1min": float(round(self.hrr_1min, 1)),
+            "zone": self._get_training_zone(current_hr_display)
         }
 
-    def _get_zone(self):
-        percent = self.current_hr / self.max_hr
-        if percent < 0.6: return "Rest"
-        if percent < 0.7: return "Fat Burn"
-        if percent < 0.8: return "Aerobic"
-        if percent < 0.9: return "Anaerobic"
-        return "VO2 Max"
-
-    def _get_zone_color(self):
-        colors = {
-            "Rest": "#00FF00",      
-            "Fat Burn": "#FFFF00", 
-            "Aerobic": "#FFA500",  
-            "Anaerobic": "#FF4500", 
-            "VO2 Max": "#FF0000"    
-        }
-        return colors.get(self._get_zone(), "#FFFFFF")
+    def _get_training_zone(self, hr):
+        """Based on the 5 training zones [cite: 260, 287]"""
+        percent = hr / self.max_hr
+        if percent < 0.6: return "Zone 1 (Very Light)"
+        if percent < 0.7: return "Zone 2 (Light)"
+        if percent < 0.8: return "Zone 3 (Moderate)"
+        if percent < 0.9: return "Zone 4 (Hard)"
+        return "Zone 5 (Maximum)"
