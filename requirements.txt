@@ -10,3 +10,6 @@ pytest
 pytest-cov
 httpx
 paho-mqtt
+vitaldb
+requests
+openweather

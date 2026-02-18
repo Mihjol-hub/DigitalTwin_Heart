@@ -37,21 +37,12 @@ def fetch_virtual_sensor_data():
 
 if __name__ == "__main__":
     connect_mqtt()
-    print("🚀 Starting real data bombardment...")
-    
-    try:
-        while True:
-            intensity, temp = fetch_virtual_sensor_data()
-            
-            # Send the intensity to the 'Brain' (P2V Connection)
-            client.publish(TOPIC_INTENSITY, str(intensity))
-            
-            # Send the context ambiental for future ML
-            client.publish(TOPIC_ENV, json.dumps({"temp_c": temp, "unit": "Celsius"}))
-            
-            print(f"📡 Sensor Virtual -> Intensity: {intensity:.2f} | Temp: {temp:.1f}°C")
-            
-            # Frequency of 1Hz for Level 3 realism
-            time.sleep(1) 
-    except KeyboardInterrupt:
-        client.disconnect()
+    while True:
+        intensity, temp = fetch_virtual_sensor_data()
+        
+        # Send as JSON for consistency
+        client.publish(TOPIC_INTENSITY, json.dumps({"intensity": intensity}))
+        client.publish(TOPIC_ENV, json.dumps({"temp_c": temp, "unit": "Celsius"}))
+        
+        print(f"📡 Sensor Virtual -> Intensity: {intensity:.2f} | Temp: {temp:.1f}°C")
+        time.sleep(1)

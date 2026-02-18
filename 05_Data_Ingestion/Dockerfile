@@ -2,8 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir paho-mqtt
 
-COPY ingestor.py .
+RUN apt-get update && apt-get install -y libpq-dev gcc --no-install-recommends && \
+    pip install --no-cache-dir paho-mqtt pandas numpy vitaldb requests
 
+
+COPY . .
+
+# 
 CMD ["python", "ingestor.py"]

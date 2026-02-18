@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS heart_metrics (
     time        TIMESTAMPTZ       NOT NULL, 
     bpm         DOUBLE PRECISION  NOT NULL,
     trimp       DOUBLE PRECISION  NOT NULL,
-    hrr         DOUBLE PRECISION  NOT NULL,
+    hrr         DOUBLE PRECISION,           -- Heart Rate Recovery (NULL when not in recovery phase)
     zone        TEXT              NOT NULL, 
     intensity   DOUBLE PRECISION,
     slope       DOUBLE PRECISION,

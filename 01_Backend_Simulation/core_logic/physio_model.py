@@ -111,18 +111,26 @@ class HeartModel:
                 self.is_recovering = False
 
     def get_metrics(self, current_hr_display):
+        zone_name, zone_color = self._get_training_zone(current_hr_display)
         return {
             "bpm": float(round(current_hr_display, 1)),
             "trimp": float(round(self.cumulative_trimp, 3)),
             "hrr_1min": float(round(self.hrr_1min, 1)),
-            "zone": self._get_training_zone(current_hr_display)
+            "zone": zone_name,
+            "color": zone_color  
         }
 
     def _get_training_zone(self, hr):
-        """Based on the 5 training zones [cite: 260, 287]"""
+        """Based on the 5 training zones and Karvonen formula"""
         percent = hr / self.max_hr
-        if percent < 0.6: return "Zone 1 (Very Light)"
-        if percent < 0.7: return "Zone 2 (Light)"
-        if percent < 0.8: return "Zone 3 (Moderate)"
-        if percent < 0.9: return "Zone 4 (Hard)"
-        return "Zone 5 (Maximum)"
+        
+        if percent < 0.6: 
+            return "Zone 1 (Very Light)", "#3B82F6"  
+        if percent < 0.7: 
+            return "Zone 2 (Light)", "#10B981"       
+        if percent < 0.8: 
+            return "Zone 3 (Moderate)", "#F59E0B"    
+        if percent < 0.9: 
+            return "Zone 4 (Hard)", "#F97316"        
+        
+        return "Zone 5 (Maximum)", "#EF4444"         

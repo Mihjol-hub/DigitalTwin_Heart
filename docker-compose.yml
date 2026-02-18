@@ -28,19 +28,18 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
-  heart_sensor:
-    build: .
-    container_name: heart_sensor
-    volumes:
-      - .:/app
-    environment:
-      - PYTHONPATH=/app
-      - MQTT_HOST=mqtt_broker
-    command: python sensor_mock.py
-    depends_on:
-      mqtt_broker:
-        condition: service_healthy
+      #heart_sensor:
+      #build: .
+      #container_name: heart_sensor
+      #volumes:
+      #- .:/app
+      #environment:
+      #- PYTHONPATH=/app
+      #- MQTT_HOST=mqtt_broker
+      #command: python sensor_mock.py
+      #depends_on:
+      #  mqtt_broker:
+      #    condition: service_healthy
 
   simulation_engine:
     build: .
@@ -91,11 +90,26 @@ services:
     build: ./05_Data_Ingestion
     container_name: heart_climate
     environment:
-      - MQTT_HOST=${MQTT_HOST}
+      - MQTT_HOST=mqtt_broker
       - API_KEY=${OPENWEATHER_API_KEY}
     command: python climate_fetcher.py
     depends_on:
       - mqtt_broker
+
+  heart_real_ingestor:
+    build: ./05_Data_Ingestion
+    container_name: heart_real_ingestor
+    volumes:
+      - ./05_Data_Ingestion:/app
+    environment:
+      - MQTT_HOST=mqtt_broker
+      - PYTHONPATH=/app
+      - DATA_MODE=athlete
+    #
+    command: python heart_data_ingestor.py
+    depends_on:
+      mqtt_broker:
+        condition: service_healthy
 
   heart_elevation_server:
     image: openelevation/open-elevation:latest
