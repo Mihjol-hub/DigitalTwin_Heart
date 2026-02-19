@@ -37,31 +37,51 @@ class HeartEngineWorker:
         try:
             raw = msg.payload.decode()
             topic = msg.topic
-            
-            try:
-                data = json.loads(raw)
-            except:
-                data = raw
+            data = json.loads(raw) if "{" in raw else raw
 
-            
-            if topic == "heart/sensor/data":
-                # search 'bpm' in the JSON that sends your heart_data_ingestor.py
-                bpm_val = data.get("bpm") if isinstance(data, dict) else float(data)
-                if bpm_val:
-                    self.patient.current_hr = float(bpm_val) # Anchor Nivel 3
-                    print(f"🔄 [REAL SYNC] BPM Actualizado: {bpm_val}")
+            if topic == "heart/env/temperature":
+                # Si data es un dict buscamos la llave, si no, lo tomamos directo
+                val = data.get("temp_c") if isinstance(data, dict) else data
+                self.current_temperature = float(val) if val is not None else 20.0
+                print(f"🌡️ [ENV] ¡Dato de Ginebra recibido!: {self.current_temperature}°C")
 
-            elif topic == "heart/env/temperature":
-                self.current_temperature = float(data.get("temp_c", 20.0))
+            elif topic == "heart/sensor/data":
+                val = data.get("bpm") if isinstance(data, dict) else data
+                if val:
+                    self.patient.current_hr = float(val)
+                    print(f"🔄 [REAL SYNC] BPM Actualizado: {val}")
 
-            # C. Agent the Esfuerzo
             elif topic == "heart/env/terrain":
-                self.current_slope = float(data.get("slope_percent", 0.0))
+                val = data.get("slope_percent") if isinstance(data, dict) else data
+                self.current_slope = float(val) if val is not None else 0.0
+
             elif topic == "heart/physio/intensity":
-                self.current_intensity = float(data.get("intensity")) if isinstance(data, dict) else float(data)
+                val = data.get("intensity") if isinstance(data, dict) else data
+                self.current_intensity = float(val) if val is not None else 0.1
 
         except Exception as e:
-            print(f"⚠️ Error en mensaje: {e}")
+            print(f"⚠️ Error en mensaje ({topic}): {e}")
+
+    def run(self):
+        # IMPORTANTE: 4 espacios de sangría en todo este bloque
+        import threading
+        print("🚀 Lanzando hilo de simulación...")
+        sim_thread = threading.Thread(target=self.simulation_loop, daemon=True)
+        sim_thread.start()
+        
+        connected = False
+        while not connected:
+            try:
+                self.client.connect(self.mqtt_host, 1883, 60)
+                connected = True
+                print("✅ Motor conectado al Broker MQTT.")
+            except Exception as e:
+                print(f"❌ Reintentando conexión MQTT: {e}")
+                time.sleep(2)
+
+        self.client.loop_forever()
+
+
 
     def simulation_loop(self):
         init_db()
@@ -99,11 +119,7 @@ class HeartEngineWorker:
                 db.close()
             time.sleep(self.dt)
 
-    def run(self):
-        sim_thread = threading.Thread(target=self.simulation_loop, daemon=True)
-        sim_thread.start()
-        self.client.connect(self.mqtt_host, 1883, 60)
-        self.client.loop_forever()
+    
 
 if __name__ == "__main__":
     worker = HeartEngineWorker()

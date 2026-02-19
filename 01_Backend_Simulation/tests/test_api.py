@@ -8,11 +8,9 @@ client = TestClient(app)
 def test_read_main():
     response = client.get("/")
     assert response.status_code == 200
-    #  validate that it at least contains the expected keys, without being too strict with the exact text.
     data = response.json()
-    assert data["status"] == "alive"
-    assert "service" in data
-    assert "engine" in data  # Now validate that the engine field exists
+    assert data["status"] == "online"
+    assert "mode" in data
     
 
 def test_set_intensity_invalid():

@@ -45,11 +45,20 @@ class HeartModel:
         """
         previous_hr = self.current_hr
 
-        # New Logic of Terrain (STEP 0) ---
-        # A 1% positive slope increases metabolic effort significantly
-        # Adjustment: +10% of effort for each 1% of slope (you can adjust the 0.1)
-        slope_factor = max(0, slope_percent * 0.1) 
-        effective_intensity = intensity + slope_factor
+        # Logic of Terrain No-lineal (STEP 0)
+        # Use power 1.5: the cost grows faster than the slope.
+        # The factor 0.015 calibrates that a 10% slope is a serious but not mortal effort.
+        slope_impact = (abs(slope_percent) ** 1.5) * 0.015
+        
+        # If the slope is negative (downhill), the effort goes down, 
+        # but only 50% of what it would go up (eccentric braking).
+        if slope_percent < 0:
+            effective_intensity = intensity - (slope_impact * 0.5)
+        else:
+            effective_intensity = intensity + slope_impact
+
+        # Limit the intensity between 0 (rest) and 1.2 (overexertion)
+        effective_intensity = max(0.0, min(1.2, effective_intensity))
         
         # 1. Calculation of Heart Rate Reserve (HRR) [cite: 379, 1070]
         # Target HR based on intensity
@@ -66,7 +75,7 @@ class HeartModel:
             tau = 20.0 
         else:
             # Parasympathetic Response (fast: <1s) [cite: 1207, 1322]
-            tau = 5.0 
+            tau = 100.0 
             
         alpha = 1 - np.exp(-dt / tau)
         self.current_hr += (target_hr - self.current_hr) * alpha

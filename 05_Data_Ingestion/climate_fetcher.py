@@ -47,7 +47,8 @@ def run_scheduler():
                 "timestamp": time.time(),
                 "provider": "OpenWeatherMap_RealTime"
             }
-            client.publish(TOPIC_ENV, json.dumps(payload))
+            client.publish(TOPIC_ENV, json.dumps(payload), retain=True)
+            
             print(f"🌡️  REAL DATA SENT: {temp}°C (Geneva)")
         else:
             print("⚠️ Could not get the weather. Retrying...")

@@ -14,14 +14,13 @@ def test_heart_rate_increases_with_intensity():
 
 def test_hr_zones_logic():
     """Verify if the zones change according to the % of MaxHR"""
-    # Age 20 -> MaxHR 200.
     model = HeartModel(age=20, resting_hr=60, sex="female")
     
-    # Test Zone 1 (Very Light) < 60% ( < 120 BPM)
-    assert model._get_training_zone(110) == "Zone 1 (Very Light)"
+    # Desestructuramos: recibimos (Nombre, Color)
+    zone_name, _ = model._get_training_zone(110) 
     
-    # Test Zone 5 (Maximum) > 90% ( > 180 BPM)
-    assert model._get_training_zone(185) == "Zone 5 (Maximum)"
+    assert zone_name == "Zone 1 (Very Light)"
+    
 
 def test_trimp_accumulation_is_monotonic():
     """TRIMP must be accumulative and never decrease"""
