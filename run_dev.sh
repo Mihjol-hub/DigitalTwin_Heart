@@ -12,7 +12,7 @@ echo -e "${BLUE}🚀 Starting development environment: DigitalTwin_Heart${NC}"
 echo -e "${YELLOW}🧹 Clean previous containers...${NC}"
 docker compose down --remove-orphans
 
-# 2. Build and start base infrastructure
+# 2. Build and start base infrastructure (DB and Broker)
 echo -e "${YELLOW}🏗️  Build and start DB and MQTT...${NC}"
 docker compose up --build -d heart_db mqtt_broker
 
@@ -20,9 +20,20 @@ docker compose up --build -d heart_db mqtt_broker
 echo -ne "${YELLOW}⏳ Waiting for MQTT broker to respond...${NC}"
 until docker exec mqtt_broker mosquitto_pub -t "test" -m "check" > /dev/null 2>&1; do
     echo -ne "."
-    sleep 1
+    sleep 2
 done
-echo -e "${GREEN} ¡Listo!${NC}"
+echo -e "${GREEN} ¡Broker ready!${NC}"
+
+
+# 3.5 Wait for PostgreSQL database to be ready (Healthcheck)
+echo -ne "${YELLOW}⏳ Waiting for Database to be ready...${NC}"
+until docker exec heart_db pg_isready -U user -d heart_twin -h localhost > /dev/null 2>&1; do
+    echo -ne "."
+    sleep 4
+done
+# Add security margin for the TCP port to open completely
+sleep 6
+echo -e "${GREEN} ¡Database ready!${NC}"
 
 # 4. Inject retained data immediately
 # This ensures the engine never sees the default 20.0 degrees
@@ -35,7 +46,7 @@ echo -e "${YELLOW}⚙️  Starting Engine, Brain and Climate Fetcher...${NC}"
 docker compose up -d simulation_engine heart_brain heart_climate
 
 # 6. Show final state
-echo -e "${GREEN}✅ System runing.${NC}"
+echo -e "${GREEN}✅ System running.${NC}"
 docker compose ps
 
 # 7. Follow the engine logs to verify

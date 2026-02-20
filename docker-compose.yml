@@ -47,6 +47,7 @@ services:
     restart: on-failure
     volumes:
       - ./01_Backend_Simulation:/app
+      - ./05_Data_Ingestion:/05_Data_Ingestion
     environment:
       - PYTHONPATH=/app
       - POSTGRES_USER=user
