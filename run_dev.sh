@@ -42,8 +42,8 @@ docker exec mqtt_broker mosquitto_pub -r -t "heart/env/temperature" -m '{"temp_c
 docker exec mqtt_broker mosquitto_pub -r -t "heart/env/terrain" -m '{"slope_percent": 0.0}'
 
 # 5. Start the rest of the system
-echo -e "${YELLOW}⚙️  Starting Engine, Brain and Climate Fetcher...${NC}"
-docker compose up -d simulation_engine heart_brain heart_climate
+echo -e "${YELLOW}⚙️  Starting Engine, Brain, Climate Fetcher and Inference Engine...${NC}"
+docker compose up -d simulation_engine heart_brain heart_climate heart_inference
 
 # 6. Show final state
 echo -e "${GREEN}✅ System running.${NC}"
