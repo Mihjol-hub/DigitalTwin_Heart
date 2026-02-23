@@ -16,7 +16,7 @@ def test_hr_zones_logic():
     """Verify if the zones change according to the % of MaxHR"""
     model = HeartModel(age=20, resting_hr=60, sex="female")
     
-    # Desestructuramos: recibimos (Nombre, Color)
+    # receive (Name, Color)
     zone_name, _ = model._get_training_zone(110) 
     
     assert zone_name == "Zone 1 (Very Light)"
@@ -78,4 +78,4 @@ def test_long_running_stability_sim():
             model.simulate_step(intensity=0.7)
         print("✅ Stability confirmed: 1,000 cycles without errors.")
     except Exception as e:
-        pytest.fail(f"❌ El modelo falló en carrera larga: {e}")
+        pytest.fail(f"❌ The model failed in long run: {e}")

@@ -21,7 +21,7 @@ def test_set_intensity_invalid():
 
 
 
-# --- TEST 17: Input Sanitization ---
+# Input Sanitization
 def test_api_invalid_intensity_input():
     """The API must reject non-numeric or out-of-range values (HTTP 422 or 400)"""
     base_url = "http://backend_sim:8000"
@@ -40,7 +40,7 @@ def test_api_invalid_intensity_input():
     r_range = requests.post(f"{base_url}/set_intensity/5.0")
     
     # Note: Adjust 'assert' to 200 if the logic truncates the value internally, 
-    # or to 400/422 if an error is thrown. We assume you validate and give an error.
+
     if r_range.status_code == 200:
         print("   (Warning: The API accepted 5.0, check if it truncates it internally)")
     else:

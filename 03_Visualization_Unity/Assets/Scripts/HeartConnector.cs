@@ -1,109 +1,154 @@
 using UnityEngine;
 using UnityEngine.Networking;
-using System.Collections;
-using UnityEngine.UI;
-
+using System;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Net.WebSockets;
+using System.Data.Common;
 
 [System.Serializable]
 public class HeartMetrics
 {
-    public string timestamp;   //  JSON FastAPI
     public float bpm;
-    public float trimp;
-    public float hrr;
     public string zone;
     public string color;
-    public float intensity; // from Unity to Python
-    public float? slope;
 }
 
 public class HeartConnector : MonoBehaviour
 {
     [Header("Configuración de API")]
-    public string apiUrl = "http://localhost:8000/metrics";
-    public float updateInterval = 0.5f; 
+    public string wsUrl = "ws://127.0.0.1:8000/ws/metrics";
+    public string postUrl = "http://127.0.0.1:8000/set_intensity";
 
     [Header("Visualización")]
-    public float scaleFactor = 0.2f; // how much will the sphere grow with each heartbeat?
+    public float scaleFactor = 0.2f;
     private Vector3 initialScale;
     private float currentBPM = 60f;
-    private Renderer heartRenderer; // Reference to the sphere's color
+    public Renderer heartRenderer;
+    private Material heartMaterial;
+
+    // WebSocket
+    private ClientWebSocket ws;
+    private CancellationTokenSource cts;
+    private HeartMetrics latestMetrics = null;
 
     void Start()
     {
         initialScale = transform.localScale;
-        heartRenderer = GetComponent<Renderer>();
-        
-        // Start the data request loop
-        StartCoroutine(GetHeartDataLoop());
+        TryInitializeRenderer();
+
+        // Start the connection in real time
+        ConnectWebSocket();
     }
 
     void Update()
     {
-        // 2. PHYSICAL BEAT:
-        // use currentBPM which is updated from Python
-        float beatSpeed = currentBPM / 60f; 
+        // 1. UPDATE VARIABLES FROM WEBSOCKET (Main thread)
+        if (latestMetrics != null && TryInitializeRenderer())
+        {
+            currentBPM = latestMetrics.bpm;
+            Color zoneColor;
+            if (ColorUtility.TryParseHtmlString(latestMetrics.color, out zoneColor))
+            {
+                heartMaterial.color = Color.Lerp(heartMaterial.color, zoneColor, Time.deltaTime * 5f);
+            }
+        }
+
+        // 2. PHYSICAL BEAT ORGANIC
+        float beatSpeed = currentBPM / 60f;
         float pulse = Mathf.PingPong(Time.time * beatSpeed * 2f, scaleFactor);
         transform.localScale = initialScale + new Vector3(pulse, pulse, pulse);
     }
 
-    IEnumerator GetHeartDataLoop()
+    bool TryInitializeRenderer()
     {
-        while (true)
+        if (heartRenderer == null)
         {
-            using (UnityWebRequest webRequest = UnityWebRequest.Get(apiUrl))
-            {
-                yield return webRequest.SendWebRequest();
+            heartRenderer = GetComponent<Renderer>();
+        }
 
-                if (webRequest.result == UnityWebRequest.Result.Success)
-                {
-                    // 3. READ THE JSON:
-                    string json = webRequest.downloadHandler.text;
-                    HeartMetrics metrics = JsonUtility.FromJson<HeartMetrics>(json);
-                    
-                    // Update local variables with data from Python
-                    currentBPM = metrics.bpm;
+        if (heartRenderer == null)
+        {
+            heartRenderer = GetComponentInChildren<Renderer>(true);
+        }
 
-                    // 4. DYNAMIC COLOR CHANGE:
-                    // Use the hexadecimal color configured in Python
-                    Color zoneColor;
-                    if (ColorUtility.TryParseHtmlString(metrics.color, out zoneColor))
-                    {
-                        heartRenderer.material.color = zoneColor;
-                    }
+        if (heartRenderer == null)
+        {
+            return false;
+        }
 
-                    Debug.Log($"Heart: {metrics.bpm} BPM | Zone: {metrics.zone} | Recovery: {metrics.hrr}");
-                }
-                else
-                {
-                    Debug.LogWarning("Python server not responding. Is Docker UP?");
-                }
-            }
-            yield return new WaitForSeconds(updateInterval);
+        if (heartMaterial == null)
+        {
+            heartMaterial = heartRenderer.material;
+        }
+
+        return heartMaterial != null;
+    }
+
+    // WebSocket
+    async void ConnectWebSocket()
+    {
+        ws = new ClientWebSocket();
+        cts = new CancellationTokenSource();
+
+        try
+        {
+            await ws.ConnectAsync(new Uri(wsUrl), cts.Token);
+            Debug.Log("🔌 Connected to the Digital Twin Brain (WebSockets)!");
+            ReceiveLoop();
+        }
+        catch (Exception e)
+        {
+            Debug.LogError("Error connecting to WebSocket. Is Docker on?: " + e.Message);
         }
     }
 
-    public void OnIntensityChanged(float  val)
+    // 📡 CONTINUOUS LISTENING LOOP
+    async void ReceiveLoop()
     {
-        StopCoroutine("SetIntensity"); // Stop any previous intensity setting coroutine
+        byte[] buffer = new byte[1024];
+
+        while (ws.State == WebSocketState.Open)
+        {
+            var result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), cts.Token);
+            if (result.MessageType == WebSocketMessageType.Text)
+            {
+                string json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                // Parse JSON in a secondary thread and save it
+                latestMetrics = JsonUtility.FromJson<HeartMetrics>(json);
+            }
+        }
+    }
+
+    // SEND INTENSITY TO BACKEND (Keep HTTP POST for this)
+    public void OnIntensityChanged(float val)
+    {
+        StopCoroutine("SetIntensity"); 
         StartCoroutine(SetIntensity(val));
     }
 
-    IEnumerator SetIntensity(float intensity)
-    
+    System.Collections.IEnumerator SetIntensity(float intensity)
     {
-    
-        string postUrl = $"http://localhost:8000/set_intensity/{intensity.ToString("F2")}";
-
-        using (UnityWebRequest www = UnityWebRequest.PostWwwForm(postUrl, ""))
+        string url = $"{postUrl}/{intensity.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}";
+        using (UnityWebRequest www = UnityWebRequest.PostWwwForm(url, ""))
         {
             yield return www.SendWebRequest();
-
             if (www.result == UnityWebRequest.Result.Success)
-                Debug.Log($"Intensity sent: {intensity}");
+                Debug.Log($"🔥 Intensity sent: {intensity}");
             else
                 Debug.LogWarning("Failed to send intensity to Python." + www.error);
         }
     }
-    
+
+    // 🧹 CLEANUP WHEN CLOSING UNITY
+    private void OnDestroy()
+    {
+        if (ws != null)
+        {
+            cts.Cancel();
+            ws.Dispose();
+            Debug.Log("Disconnecting WebSocket...");
+        }
+    }
 }
