@@ -10,7 +10,7 @@ from core_logic.physio_model import HeartModel
 
 class HeartEngineWorker:
     def __init__(self):
-        self.patient = HeartModel(age=25, sex='male', resting_hr=62)
+        self.patient = HeartModel(age=25, sex='male', resting_hr=50, max_hr=195, vo2_max=55.0)
         
         self.current_intensity = 0.1
         self.current_temperature = 20.0
@@ -100,8 +100,13 @@ class HeartEngineWorker:
                 log = HeartLog(
                     bpm=metrics["bpm"],
                     trimp=metrics["trimp"],
+                    eccentric_load=metrics["eccentric_load"],
+                    hrr=metrics.get("hrr_1min"),  
+                    hrrpt=metrics.get("hrrpt"),
+                    sd1=metrics.get("sd1"),
+                    sd2=metrics.get("sd2"),   
                     zone=metrics["zone"],
-                    color=metrics["color"], # Hexadecimal functional
+                    color=metrics["color"], 
                     intensity=self.current_intensity,
                     slope=self.current_slope,
                     time=datetime.now(timezone.utc)

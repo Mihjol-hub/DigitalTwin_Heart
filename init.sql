@@ -1,20 +1,24 @@
--- 1. Activamos la extensión de TimescaleDB (fundamental para series temporales)
+-- 1. Enable TimescaleDB extension (fundamental for time series)
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 
--- 2. Tabla de métricas del corazón (Aquí añadimos SLOPE)
+-- 2. Table of heart metrics (Here we add SLOPE)
 CREATE TABLE IF NOT EXISTS heart_metrics (
-    time        TIMESTAMPTZ       NOT NULL,
-    bpm         DOUBLE PRECISION  NOT NULL,
-    trimp       DOUBLE PRECISION  NOT NULL, -- Esfuerzo acumulado (Banister)
-    hrr         DOUBLE PRECISION,           -- Recuperación cardíaca (puede ser NULL si no está en fase de recovery)
-    zone        VARCHAR(30)       NOT NULL, -- Zona de entrenamiento
-    intensity   DOUBLE PRECISION,           -- Intensidad enviada por el sensor/GPX
-    slope       DOUBLE PRECISION,           -- [NUEVO] Inclinación del terreno (%)
-    color       VARCHAR(10)                 -- Color para Unity (#RRGGBB)
+    time            TIMESTAMPTZ       NOT NULL, 
+    bpm             DOUBLE PRECISION  NOT NULL,
+    trimp           DOUBLE PRECISION  NOT NULL,
+    eccentric_load  DOUBLE PRECISION,
+    hrr             DOUBLE PRECISION, 
+    hrrpt           DOUBLE PRECISION, -- HRRPT Transition
+    sd1             DOUBLE PRECISION, -- SD1 (Short-term variability)
+    sd2             DOUBLE PRECISION, -- SD2 (Long-term variability)
+    zone            VARCHAR(30)       NOT NULL, 
+    intensity       DOUBLE PRECISION,
+    slope           DOUBLE PRECISION,
+    color           VARCHAR(10)               
 );
 
--- 3. Tabla para métricas ambientales (Clima/Contaminación/Presión)
--- ¡OJO! Tu Worker intenta guardar aquí, así que esta tabla es OBLIGATORIA
+-- 3. Table for environmental metrics (Clima/Contaminación/Presión)
+-- NOTE! Worker tries to save here, so this table is MANDATORY
 CREATE TABLE IF NOT EXISTS environmental_metrics (
     time        TIMESTAMPTZ       NOT NULL,
     temperature DOUBLE PRECISION,
@@ -22,18 +26,18 @@ CREATE TABLE IF NOT EXISTS environmental_metrics (
     pressure    DOUBLE PRECISION
 );
 
--- 4. Convertimos ambas en Hypertables (Optimización de TimescaleDB)
+-- 4. Convert both to Hypertables (TimescaleDB Optimization)
 SELECT create_hypertable('heart_metrics', 'time', if_not_exists => TRUE);
 SELECT create_hypertable('environmental_metrics', 'time', if_not_exists => TRUE);
 
--- 5. Estado de la simulación (Configuración en tiempo real)
+-- 5. State of the simulation (Real-time configuration)
 CREATE TABLE IF NOT EXISTS simulation_state (
     id                INT PRIMARY KEY,
     target_intensity  DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     updated_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Estado inicial
+-- Initial state
 INSERT INTO simulation_state (id, target_intensity) 
 VALUES (1, 0.0) 
 ON CONFLICT (id) DO NOTHING;

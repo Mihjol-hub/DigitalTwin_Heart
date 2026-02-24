@@ -3,14 +3,18 @@ CREATE EXTENSION IF NOT EXISTS timescaledb;
 
 -- 2. Metrics table (Synchronized with Python)
 CREATE TABLE IF NOT EXISTS heart_metrics (
-    time        TIMESTAMPTZ       NOT NULL, 
-    bpm         DOUBLE PRECISION  NOT NULL,
-    trimp       DOUBLE PRECISION  NOT NULL,
-    hrr         DOUBLE PRECISION,           -- Heart Rate Recovery (NULL when not in recovery phase)
-    zone        TEXT              NOT NULL, 
-    intensity   DOUBLE PRECISION,
-    slope       DOUBLE PRECISION,
-    color       TEXT
+    time            TIMESTAMPTZ       NOT NULL, 
+    bpm             DOUBLE PRECISION  NOT NULL,
+    trimp           DOUBLE PRECISION  NOT NULL,
+    eccentric_load  DOUBLE PRECISION,
+    hrr             DOUBLE PRECISION, 
+    hrrpt           DOUBLE PRECISION, -- [NEW] HRRPT Transition
+    sd1             DOUBLE PRECISION, -- [NEW] SD1 (Short-term variability)
+    sd2             DOUBLE PRECISION, -- [NEW] SD2 (Long-term variability)
+    zone            VARCHAR(30)       NOT NULL, 
+    intensity       DOUBLE PRECISION,
+    slope           DOUBLE PRECISION,
+    color           VARCHAR(10)               
 );
 
 -- 3. Convert to Hypertable using the correct column
